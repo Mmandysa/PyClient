@@ -16,6 +16,7 @@ from models.friend import Friend
 from widgets.avatar_label import AvatarLabel
 from widgets.chat_bubble import ChatBubble
 from widgets.friend_item import FriendItemWidget
+from widgets.friend_list_header import FriendListHeader
 
 class ChatWindow(QMainWindow):
     def __init__(self, username):
@@ -48,6 +49,18 @@ class ChatWindow(QMainWindow):
     
     def create_friend_list(self):
         """创建好友列表区域"""
+        # 左侧整体容器
+        left_widget = QWidget()
+        left_layout = QVBoxLayout()
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+        left_widget.setLayout(left_layout)
+        
+        # 添加顶部头像和搜索框
+        self.friend_list_header = FriendListHeader(self.username)
+        left_layout.addWidget(self.friend_list_header)
+        
+        # 好友列表
         self.friend_list = QListWidget()
         self.friend_list.setStyleSheet("""
             QListWidget {
@@ -67,7 +80,9 @@ class ChatWindow(QMainWindow):
             }
         """)
         self.friend_list.itemClicked.connect(self.on_friend_selected)
-        self.splitter.addWidget(self.friend_list)
+        
+        left_layout.addWidget(self.friend_list)
+        self.splitter.addWidget(left_widget)
     
     def create_chat_area(self):
         """创建聊天区域"""
