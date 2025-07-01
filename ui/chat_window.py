@@ -4,7 +4,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QListWidget, QListWidgetItem, 
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, 
-    QLineEdit, QPushButton, QLabel, QSizePolicy, QApplication
+    QLineEdit, QPushButton, QLabel, QSizePolicy, QApplication,QDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QFont
@@ -17,6 +17,7 @@ from widgets.avatar_label import AvatarLabel
 from widgets.chat_bubble import ChatBubble
 from widgets.friend_item import FriendItemWidget
 from widgets.friend_list_header import FriendListHeader
+from widgets.profile_widget import ProfileWidget
 
 class ChatWindow(QMainWindow):
     def __init__(self, username):
@@ -46,6 +47,17 @@ class ChatWindow(QMainWindow):
         
         # 初始化好友列表
         self.init_friends()
+
+        self.friend_list_header.avatar_clicked.connect(
+            lambda: self.show_profile(self.username, is_current_user=True)
+        )
+
+        self.user_data = {
+            "username": username,
+            "nickname": username,  # 默认昵称同用户名
+            "email": f"{username}@example.com"  # 模拟邮箱
+        }
+        self.friends_data = {} 
     
     def create_friend_list(self):
         """创建好友列表区域"""
@@ -255,7 +267,8 @@ class ChatWindow(QMainWindow):
         message_widget.setLayout(message_layout)
         
         # 头像
-        avatar = AvatarLabel(sender)
+        avatar = AvatarLabel(sender, size=40)
+        avatar.clicked.connect(lambda *args, u=sender, m=is_me: self.show_profile(u, m))
         
         # 聊天气泡
         bubble = ChatBubble(message, is_me)
@@ -272,9 +285,9 @@ class ChatWindow(QMainWindow):
             message_layout.addWidget(bubble)
             message_layout.addStretch()
         
-        # 添加到聊天区域 (在弹性空间之前)
+        # 添加时间到聊天区域
         self.chat_content_layout.insertWidget(
-            self.chat_content_layout.count() - 1,  # 在弹性空间前插入
+            self.chat_content_layout.count() - 1,
             time_label
         )
         self.chat_content_layout.insertWidget(
@@ -284,6 +297,60 @@ class ChatWindow(QMainWindow):
         
         # 滚动到底部
         self.scroll_to_bottom()
+    def show_profile(self, username, is_current_user=False):
+        """显示个人资料窗口"""
+        if is_current_user:
+            # 显示当前用户资料
+            profile_data = self.user_data
+            title = "我的资料"
+        else:
+            # 显示好友资料
+            if username not in self.friends_data:
+                # 如果还没有缓存，创建模拟数据
+                self.friends_data[username] = {
+                    "username": username,
+                    "nickname": f"{username}的昵称",
+                    "email": f"{username}@example.com"
+                }
+            profile_data = self.friends_data[username]
+            title = f"{username}的资料"
+        
+        # 创建对话框
+        profile_dialog = QDialog(self)
+        profile_dialog.setWindowTitle(title)
+        profile_dialog.setFixedSize(400, 500 if is_current_user else 400)
+        
+        # 创建资料组件
+        profile_widget = ProfileWidget(
+            profile_data,
+            is_current_user=is_current_user,
+            parent=profile_dialog
+        )
+        
+        # 如果是当前用户，连接保存信号
+        if is_current_user:
+            profile_widget.profile_updated.connect(self.update_profile)
+        
+        # 设置布局
+        layout = QVBoxLayout()
+        layout.addWidget(profile_widget)
+        profile_dialog.setLayout(layout)
+        
+        profile_dialog.exec()
+    
+    def update_profile(self, updated_data):
+        """更新个人资料"""
+        # 更新本地数据
+        if "nickname" in updated_data:
+            self.user_data["nickname"] = updated_data["nickname"]
+        if "email" in updated_data:
+            self.user_data["email"] = updated_data["email"]
+        
+        # 这里添加实际API调用更新资料的代码
+        print("更新资料:", updated_data)
+        
+        # 显示成功消息
+        QMessageBox.information(self, "成功", "资料更新成功！")
     
     def scroll_to_bottom(self):
         """滚动聊天区域到底部"""

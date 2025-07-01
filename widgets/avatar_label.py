@@ -1,26 +1,33 @@
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtGui import QPainter, QColor, QFont, QImage, QPixmap, QBrush
-from PyQt6.QtCore import Qt, QSize  # 添加 QSize 导入
-import random
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 import hashlib
 
 class AvatarLabel(QLabel):
-    def __init__(self, username, parent=None):
+    clicked = pyqtSignal()
+    
+    def __init__(self, username, size=40, parent=None):
         """
         初始化头像标签
         :param username: 用户名，用于生成头像
+        :param size: 头像尺寸（默认40x40像素）
         :param parent: 父组件
         """
         super().__init__(parent)
         self.username = username
-        self.setFixedSize(40, 40)  # 固定头像大小
-        self.setStyleSheet("background: transparent; border: none;")
-        self.generate_avatar()
-
+        self.size = size
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """设置UI"""
+        self.generate_avatar()  # 生成头像
+        self.setFixedSize(self.size, self.size)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+    
     def generate_avatar(self):
         """生成圆形头像，包含用户名的首字母"""
         # 创建透明背景的图像
-        image = QImage(40, 40, QImage.Format.Format_ARGB32)
+        image = QImage(self.size, self.size, QImage.Format.Format_ARGB32)
         image.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(image)
@@ -31,11 +38,11 @@ class AvatarLabel(QLabel):
         painter.setBrush(QBrush(color))
 
         # 2. 绘制圆形背景
-        painter.drawEllipse(0, 0, 40, 40)
+        painter.drawEllipse(0, 0, self.size, self.size)
 
         # 3. 绘制首字母
         painter.setPen(Qt.GlobalColor.white)
-        font = QFont("Microsoft YaHei", 16)
+        font = QFont("Microsoft YaHei", int(self.size * 0.4))  # 字体大小为尺寸的40%
         font.setBold(True)
         painter.setFont(font)
 
@@ -47,8 +54,8 @@ class AvatarLabel(QLabel):
 
         # 居中绘制文字
         painter.drawText(
-            (40 - text_width) // 2,
-            (40 - text_height) // 2 + font_metrics.ascent(),
+            (self.size - text_width) // 2,
+            (self.size - text_height) // 2 + font_metrics.ascent(),
             initial
         )
 
@@ -70,6 +77,11 @@ class AvatarLabel(QLabel):
         
         return QColor(r, g, b)
 
+    def mousePressEvent(self, event):
+        """重写鼠标点击事件"""
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
     def sizeHint(self):
         """返回建议大小"""
-        return QSize(40, 40)
+        return QSize(self.size, self.size)

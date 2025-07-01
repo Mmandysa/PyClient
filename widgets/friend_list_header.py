@@ -1,15 +1,17 @@
-# widgets/friend_list_header.py
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QLineEdit, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from widgets.avatar_label import AvatarLabel
 
 __all__ = ['FriendListHeader']
 
 class FriendListHeader(QWidget):
-    def __init__(self, username):
-        super().__init__()
+    # 添加信号，用于通知外部头像被点击
+    avatar_clicked = pyqtSignal(str)  # 传递用户名
+    
+    def __init__(self, username, parent=None):
+        super().__init__(parent)
         self.username = username
         self.setFixedHeight(60)
         self.setup_ui()
@@ -20,11 +22,12 @@ class FriendListHeader(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
-        # 用户头像 - 移除 size 参数或根据 AvatarLabel 定义调整
-        self.avatar = AvatarLabel(self.username)  # 修改这里
-        
-        # 如果需要设置大小，可以通过样式表或固定大小
+        # 创建头像标签
+        self.avatar = AvatarLabel(self.username, size=40)
         self.avatar.setFixedSize(40, 40)
+        
+        # 连接头像点击信号
+        self.avatar.clicked.connect(self.handle_avatar_click)
         
         # 搜索框
         self.search_input = QLineEdit()
@@ -50,3 +53,7 @@ class FriendListHeader(QWidget):
         layout.addWidget(self.search_input)
         
         self.setLayout(layout)
+    
+    def handle_avatar_click(self):
+        """处理头像点击事件"""
+        self.avatar_clicked.emit(self.username)
