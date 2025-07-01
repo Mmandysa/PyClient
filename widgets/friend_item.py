@@ -32,7 +32,7 @@ class FriendItemWidget(QWidget):
         """ % ("#00c800" if friend.online else "gray"))
         
         # 用户名标签
-        self.name_label = QLabel(friend.username)
+        self.name_label = QLabel(friend.nickname)
         self.name_label.setFont(QFont("Microsoft YaHei", 12))
         self.name_label.setStyleSheet("""
             QLabel {
@@ -48,7 +48,7 @@ class FriendItemWidget(QWidget):
         
         layout.addWidget(self.status_dot)
         layout.addWidget(self.name_label)
-        layout.addStretch()  # 右侧弹性空间
+        layout.addStretch()
         
         self.setLayout(layout)
     
@@ -57,7 +57,7 @@ class FriendItemWidget(QWidget):
         更新在线状态
         :param is_online: 是否在线
         """
-        self.friend.online = is_online
+        self.friend.status = is_online
         self.status_dot.setStyleSheet(f"""
             QLabel {{
                 background-color: {"#00c800" if is_online else "gray"};

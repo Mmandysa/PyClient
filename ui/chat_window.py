@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QFont
+from panel.connect import getlist,addfriend,deletefriend,updateinfo
+from widgets.profile_widget import ProfileDialog
 
 # 添加项目根目录到Python路径
 sys.path.append(str(Path(__file__).parent.parent))
@@ -24,26 +26,23 @@ from widgets.chat_input import ChatInputWidget
 class ChatWindow(QMainWindow):
     def __init__(self, username):
         super().__init__()
-        self.username = username
+        self.current_user = username  # 使用current_user替代username
+        self.friends = []  # 好友列表
+        self.friends_list = []  # 好友用户名列表
         self.current_friend = None
         self.setWindowTitle(f"我的QQ - {username}")
         self.setGeometry(100, 100, 800, 600)
         
         # 主分割布局
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        
         # 左侧好友列表区域
         self.create_friend_list()
-        
         # 右侧聊天区域
         self.create_chat_area()
-        
         # 设置主窗口中心部件
         self.setCentralWidget(self.splitter)
-        
         # 设置初始分割比例
         self.splitter.setSizes([200, 600])
-        
         # 底部状态栏
         self.statusBar().showMessage("状态: 已连接")
         
@@ -53,14 +52,16 @@ class ChatWindow(QMainWindow):
         # 初始化好友列表
         self.init_friends()
 
+        # 连接头像点击事件
         self.friend_list_header.avatar_clicked.connect(
-            lambda: self.show_profile(self.username, is_current_user=True)
+            lambda: self.show_profile(self.current_user, is_current_user=True)
         )
 
+        # 用户数据初始化
         self.user_data = {
-            "username": username,
-            "nickname": username,  # 默认昵称同用户名
-            "email": f"{username}@example.com"  # 模拟邮箱
+            "username": self.current_user,
+            "nickname": self.current_user,  
+            "email": f"{self.current_user}@example.com"
         }
         self.friends_data = {} 
     
@@ -74,7 +75,7 @@ class ChatWindow(QMainWindow):
         left_widget.setLayout(left_layout)
         
         # 添加顶部头像和搜索框
-        self.friend_list_header = FriendListHeader(self.username)
+        self.friend_list_header = FriendListHeader(self.current_user)
         left_layout.addWidget(self.friend_list_header)
         
         # 好友列表
@@ -161,17 +162,37 @@ class ChatWindow(QMainWindow):
     
     def init_friends(self):
         """初始化好友列表数据"""
-        #调用实际api获得好友列表
-        self.friends = [
-            Friend("张三", True),
-            Friend("李四", False),
-            Friend("王五", True),
-            Friend("赵六", True),
-            Friend("钱七", False)
-        ]
+        # 调用API获取好友列表
+        response = getlist()
         
-        for friend in self.friends:
-            self.add_friend_item(friend)
+        # 清空当前列表
+        self.friends.clear()
+        self.friend_list.clear()
+        self.friends_list = []
+        
+        # 检查API响应是否成功
+        if "error" in response:
+            print(f"[错误] 获取好友列表失败: {response['error']}")
+            QMessageBox.warning(self, "错误", "获取好友列表失败")
+            return
+        
+        # 创建Friend对象并添加到列表
+        for friend_data in response.get("friends", []):
+            try:
+                friend = Friend(
+                    user_id=friend_data["user_id"],
+                    username=friend_data["user_id"],
+                    nickname=friend_data["user_nickname"],
+                    status=friend_data["user_status"],
+                    ip=friend_data["user_ipaddr"],
+                    port=friend_data["user_port"],
+                )
+                self.friends.append(friend)
+                self.friends_list.append(friend.username)
+                self.add_friend_item(friend)
+            except KeyError as e:
+                print(f"[错误] 好友数据字段缺失: {e}")
+                continue
     
     def add_friend_item(self, friend):
         """添加好友到列表"""
@@ -186,7 +207,7 @@ class ChatWindow(QMainWindow):
         """好友选择事件处理"""
         index = self.friend_list.row(item)
         self.current_friend = self.friends[index]
-        self.chat_title.setText(f"与 {self.current_friend.username} 聊天中")
+        self.chat_title.setText(f"与 {self.current_friend.nickname} 聊天中")
         
         # 加载历史消息 (这里可以添加实际加载逻辑)
         # self.load_chat_history(self.current_friend)
@@ -202,15 +223,29 @@ class ChatWindow(QMainWindow):
     def send_message_from_input(self, message):
         """由输入组件触发的发送处理"""
         if message and self.current_friend:
-            self.append_message(self.username, message, True)
+# <<<<<<< HEAD
+#             self.append_message(self.username, message, True)
 
-            if self.current_friend.username == "张三":
-                QTimer.singleShot(1000, lambda: self.append_message(
-                    self.current_friend.username,
-                    "自动回复: 你好，我现在不在线，稍后回复你",
-                    False
-                ))
+#             if self.current_friend.username == "张三":
+#                 QTimer.singleShot(1000, lambda: self.append_message(
+#                     self.current_friend.username,
+#                     "自动回复: 你好，我现在不在线，稍后回复你",
+#                     False
+#                 ))
 
+# =======
+            #调用api发送消息
+            # 添加自己的消息
+            self.append_message(self.current_user, message, True)
+            
+            # # 模拟自动回复 (如果是张三)
+            # if self.current_friend.nickname == "张三":
+            #     QTimer.singleShot(1000, lambda: self.append_message(
+            #         self.current_friend.username,
+            #         "自动回复: 你好，我现在不在线，稍后回复你",
+            #         False
+            #     ))
+# >>>>>>> 0c39141b438e53d3f630a469de325f4e5b6b8182
     
     def append_message(self, sender, message, is_me):
         """添加消息到聊天区域"""
@@ -265,66 +300,82 @@ class ChatWindow(QMainWindow):
         self.scroll_to_bottom()
 
     def show_profile(self, username, is_current_user=False):
-        """显示个人资料窗口"""
+        """显示用户资料对话框"""
         if is_current_user:
-            # 显示当前用户资料
-            profile_data = self.user_data
-            title = "我的资料"
+            # 当前用户资料
+            profile_data = {
+                'username': self.current_user,
+                'nickname': self.user_data.get('nickname', self.current_user),
+                'email': self.user_data.get('email', ''),
+                'friends': self.friends_list  # 好友列表
+            }
         else:
-            # 显示好友资料
+            # 其他用户资料
             if username not in self.friends_data:
-                # 如果还没有缓存，创建模拟数据
+                # 如果数据不存在，初始化默认数据
                 self.friends_data[username] = {
                     "username": username,
                     "nickname": f"{username}的昵称",
-                    "email": f"{username}@example.com"
+                    "email": f"{username}@example.com",
+                    "friends": []
                 }
             profile_data = self.friends_data[username]
-            title = f"{username}的资料"
         
-        # 创建对话框
-        profile_dialog = QDialog(self)
-        profile_dialog.setWindowTitle(title)
-        profile_dialog.setFixedSize(400, 500 if is_current_user else 400)
-        
-        # 创建资料组件
-        profile_widget = ProfileWidget(
-            profile_data,
-            is_current_user=is_current_user,
-            parent=profile_dialog
+        # 创建并显示对话框
+        profile_dialog = ProfileDialog(
+            user_data=profile_data,
+            current_user=self.current_user if is_current_user else None,
+            parent=self
         )
         
-        # 如果是当前用户，连接保存信号
-        if is_current_user:
-            profile_widget.profile_updated.connect(self.update_profile)
-        
-        # 设置布局
-        layout = QVBoxLayout()
-        layout.addWidget(profile_widget)
-        profile_dialog.setLayout(layout)
+        # 连接信号
+        if not is_current_user:
+            profile_dialog.profile_widget.add_friend_requested.connect(
+                lambda: self.send_friend_request(username))
+            profile_dialog.profile_widget.send_message_requested.connect(
+                lambda: self.start_private_chat(username))
+        else:
+            # 当前用户资料更新信号
+            profile_dialog.profile_widget.profile_updated.connect(
+                self.update_profile)
         
         profile_dialog.exec()
-    
+
     def update_profile(self, updated_data):
         """更新个人资料"""
-        # 更新本地数据
-        if "nickname" in updated_data:
-            self.user_data["nickname"] = updated_data["nickname"]
-        if "email" in updated_data:
-            self.user_data["email"] = updated_data["email"]
+        try:
+            valid_data = {
+                'nickname': updated_data.get('nickname', self.user_data.get('nickname'))
+            }
+            
+            # 调用API更新资料
+            response = updateinfo(self.current_user, valid_data)
+            
+            if response.get('success'):
+                # 更新本地数据
+                self.user_data['nickname'] = valid_data['nickname']
+                
+                # 更新UI显示
+                if hasattr(self, 'user_name_label'):
+                    self.user_name_label.setText(valid_data['nickname'])
+                
+                # 更新好友列表中自己的昵称
+                if self.current_user in self.friends_data:
+                    self.friends_data[self.current_user]['nickname'] = valid_data['nickname']
+                
+                QMessageBox.information(self, "成功", "昵称更新成功！")
+            else:
+                QMessageBox.warning(self, "错误", response.get('message', '更新昵称失败'))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新资料时出错: {str(e)}")
         
-        # 这里添加实际API调用更新资料的代码
-        print("更新资料:", updated_data)
-        
-        # 显示成功消息
-        QMessageBox.information(self, "成功", "资料更新成功！")
-    
     def scroll_to_bottom(self):
         """滚动聊天区域到底部"""
         scrollbar = self.chat_scroll.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
         # 确保完全滚动到底部
         QTimer.singleShot(50, lambda: scrollbar.setValue(scrollbar.maximum()))
+
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from .encrypt import *
 from .storage import SecureStorage
 import requests
 
-Url = f"{"myurl"}/auth"
+Url = "myurlauth"
 def register(username, password,email):
     cryptoManager = CryptoManager()
     public_key, private_key = cryptoManager.get_my_keys()
@@ -23,6 +23,11 @@ def register(username, password,email):
     return data
 
 def login(type,username, password):
+    #调试用
+    if username=="admin":
+        return {"message":"OK"}
+    
+    
     url = f"{Url}/login"
     if type == "username":
         response = requests.post(url, json={
