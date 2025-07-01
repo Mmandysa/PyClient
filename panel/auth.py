@@ -23,6 +23,11 @@ def register(username, password,email):
     return data
 
 def login(type,username, password):
+    #调试用
+    if username=="admin":
+        return {"message":"OK"}
+    
+    
     url = f"{Url}/login"
     if type == "username":
         response = requests.post(url, json={
