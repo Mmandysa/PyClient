@@ -8,7 +8,7 @@ __all__ = ['FriendListHeader']
 
 class FriendListHeader(QWidget):
     # 添加信号，用于通知外部头像被点击
-    avatar_clicked = pyqtSignal(str)  # 传递用户名
+    avatar_clicked = pyqtSignal(str)
     
     def __init__(self, username, parent=None):
         super().__init__(parent)

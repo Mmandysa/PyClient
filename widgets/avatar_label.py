@@ -10,7 +10,7 @@ class AvatarLabel(QLabel):
         """
         初始化头像标签
         :param username: 用户名，用于生成头像
-        :param size: 头像尺寸（默认40x40像素）
+        :param size: 头像尺寸
         :param parent: 父组件
         """
         super().__init__(parent)
@@ -70,7 +70,7 @@ class AvatarLabel(QLabel):
         hash_obj = hashlib.md5(self.username.encode('utf-8'))
         hash_int = int(hash_obj.hexdigest(), 16)
         
-        # 从哈希值生成RGB颜色（避免太亮或太暗）
+        # 从哈希值生成RGB颜色
         r = (hash_int & 0xFF) % 180 + 50  # 50-230
         g = ((hash_int >> 8) & 0xFF) % 180 + 50
         b = ((hash_int >> 16) & 0xFF) % 180 + 50

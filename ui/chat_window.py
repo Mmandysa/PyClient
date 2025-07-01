@@ -215,9 +215,6 @@ class ChatWindow(QMainWindow):
         self.current_friend = self.friends[index]
         self.chat_title.setText(f"与 {self.current_friend.username} 聊天中")
         
-        # 清空聊天区域
-        self.clear_chat_area()
-        
         # 加载历史消息 (这里可以添加实际加载逻辑)
         # self.load_chat_history(self.current_friend)
     
@@ -297,6 +294,7 @@ class ChatWindow(QMainWindow):
         
         # 滚动到底部
         self.scroll_to_bottom()
+
     def show_profile(self, username, is_current_user=False):
         """显示个人资料窗口"""
         if is_current_user:
