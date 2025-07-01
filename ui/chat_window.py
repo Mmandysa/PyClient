@@ -224,19 +224,19 @@ class ChatWindow(QMainWindow):
         """由输入组件触发的发送处理"""
         if message and self.current_friend:
 # <<<<<<< HEAD
-#             self.append_message(self.username, message, True)
+            self.append_message(self.current_user, message, True)
 
-#             if self.current_friend.username == "张三":
-#                 QTimer.singleShot(1000, lambda: self.append_message(
-#                     self.current_friend.username,
-#                     "自动回复: 你好，我现在不在线，稍后回复你",
-#                     False
-#                 ))
+            if self.current_friend.username == "张三":
+                QTimer.singleShot(1000, lambda: self.append_message(
+                    self.current_friend.username,
+                    "自动回复: 你好，我现在不在线，稍后回复你",
+                    False
+                ))
 
 # =======
             #调用api发送消息
             # 添加自己的消息
-            self.append_message(self.current_user, message, True)
+
             
             # # 模拟自动回复 (如果是张三)
             # if self.current_friend.nickname == "张三":
