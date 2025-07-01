@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from datetime import datetime
+import os
 from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QListWidget, QListWidgetItem, 
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -18,6 +19,7 @@ from widgets.chat_bubble import ChatBubble
 from widgets.friend_item import FriendItemWidget
 from widgets.friend_list_header import FriendListHeader
 from widgets.profile_widget import ProfileWidget
+from widgets.chat_input import ChatInputWidget
 
 class ChatWindow(QMainWindow):
     def __init__(self, username):
@@ -44,6 +46,9 @@ class ChatWindow(QMainWindow):
         
         # 底部状态栏
         self.statusBar().showMessage("状态: 已连接")
+        
+        # 设置聊天区域和输入区域的比例为7:3
+        self.chat_layout.setStretch(1, 3)
         
         # 初始化好友列表
         self.init_friends()
@@ -141,50 +146,18 @@ class ChatWindow(QMainWindow):
         self.splitter.addWidget(self.chat_widget)
     
     def create_input_area(self):
-        """创建消息输入区域"""
-        input_widget = QWidget()
-        input_layout = QHBoxLayout()
-        input_widget.setLayout(input_layout)
-        
-        # 消息输入框
-        self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("输入消息...")
-        self.input_field.setStyleSheet("""
-            QLineEdit {
-                font-family: Microsoft YaHei;
-                font-size: 14px;
-                padding: 8px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
-        self.input_field.returnPressed.connect(self.send_message)
-        
-        # 发送按钮
-        self.send_btn = QPushButton("发送")
-        self.send_btn.setStyleSheet("""
-            QPushButton {
-                font-family: Microsoft YaHei;
-                font-size: 14px;
-                color: white;
-                background-color: #00b400;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #00c800;
-            }
-            QPushButton:pressed {
-                background-color: #009a00;
-            }
-        """)
-        self.send_btn.clicked.connect(self.send_message)
-        
-        input_layout.addWidget(self.input_field)
-        input_layout.addWidget(self.send_btn)
-        self.chat_layout.addWidget(input_widget)
+        """替换为封装的输入组件"""
+        self.input_area = ChatInputWidget()
+        self.input_area.send_message_signal.connect(self.send_message_from_input)
+        self.input_area.send_file_signal.connect(self.handle_file_selected)  # 新增
+        self.chat_layout.addWidget(self.input_area)
+
+    def handle_file_selected(self, file_path):
+        """处理选择的文件"""
+        if self.current_friend:
+            file_name = os.path.basename(file_path)
+            self.append_message(self.username, f"[文件] {file_name}", True)
+            # 这里可以添加实际的文件发送逻辑
     
     def init_friends(self):
         """初始化好友列表数据"""
@@ -226,22 +199,18 @@ class ChatWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
     
-    def send_message(self):
-        """发送消息处理"""
-        message = self.input_field.text().strip()
+    def send_message_from_input(self, message):
+        """由输入组件触发的发送处理"""
         if message and self.current_friend:
-            #调用api发送消息
-            # 添加自己的消息
             self.append_message(self.username, message, True)
-            self.input_field.clear()
-            
-            # 模拟自动回复 (如果是张三)
+
             if self.current_friend.username == "张三":
                 QTimer.singleShot(1000, lambda: self.append_message(
                     self.current_friend.username,
                     "自动回复: 你好，我现在不在线，稍后回复你",
                     False
                 ))
+
     
     def append_message(self, sender, message, is_me):
         """添加消息到聊天区域"""

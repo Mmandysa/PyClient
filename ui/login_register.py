@@ -154,9 +154,15 @@ class LoginRegisterWindow(QMainWindow):
         return page
     
     def handle_login(self):
+
+
         account = self.account_field.text().strip()
         password = self.password_input.text()  # 使用组件的text()方法获取密码
-        
+
+        self.chat_window = ChatWindow(account)
+        self.chat_window.show()
+        self.close()
+
         if not account or not password:
             QMessageBox.warning(self, "警告", "账号或密码不能为空！")
             return
@@ -165,6 +171,10 @@ class LoginRegisterWindow(QMainWindow):
             is_email = "@" in account and "." in account
             response = login("email" if is_email else "username", account, password)
             
+            self.chat_window = ChatWindow(username)
+            self.chat_window.show()
+            self.close()
+
             if 'error' in response:
                 QMessageBox.critical(self, "登录失败", response['error'])
             else:
