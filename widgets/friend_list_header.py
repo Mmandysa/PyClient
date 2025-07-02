@@ -8,8 +8,9 @@ __all__ = ['FriendListHeader']
 
 class FriendListHeader(QWidget):
     # 信号定义
-    avatar_clicked = pyqtSignal(str)
-    add_button_clicked = pyqtSignal() 
+    need_update_friends = pyqtSignal()  # 需要更新好友列表信号
+    avatar_clicked = pyqtSignal(str)    # 头像点击信号
+    add_button_clicked = pyqtSignal()   # 添加按钮点击信号
     
     def __init__(self, username, parent=None):
         super().__init__(parent)
@@ -27,10 +28,10 @@ class FriendListHeader(QWidget):
         """)
         
         layout = QHBoxLayout()
-        layout.setContentsMargins(15, 10, 15, 10)  # 保持原有边距
+        layout.setContentsMargins(15, 10, 15, 10)
         layout.setSpacing(15)
         
-        # 创建头像标签 (固定在左侧)
+        # 创建头像标签
         self.avatar = AvatarLabel(self.username, size=30)
         self.avatar.setFixedSize(30, 30)
         self.avatar.clicked.connect(self.handle_avatar_click)
@@ -39,7 +40,7 @@ class FriendListHeader(QWidget):
         # 添加水平弹簧
         layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         
-        # 创建加号按钮 (固定在右侧)
+        # 创建加号按钮
         self.add_button = QPushButton()
         self.add_button.setFixedSize(30, 30)
         self.add_button.setIcon(QIcon("icons/add.png"))
@@ -70,31 +71,18 @@ class FriendListHeader(QWidget):
     
     def handle_add_button_click(self):
         """处理加号按钮点击事件 - 打开好友申请管理窗口"""
-        
-        # 检查是否已经存在窗口实例，避免重复创建
         if not hasattr(self, 'friend_request_window'):
             self.friend_request_window = FriendRequestWindow(
                 current_user=self.username,
-                parent=self  # 设置父组件确保窗口关闭时释放资源
+                parent=self
             )
-            # 连接信号到主窗口的处理方法
-            self.friend_request_window.send_request.connect(self.handle_send_friend_request)
-            self.friend_request_window.respond_request.connect(self.handle_respond_request)
+            # 连接好友删除信号到更新好友列表的方法
+            self.friend_request_window.friend_deleted.connect(self.handle_friend_deleted)
         
-        # 显示窗口（如果窗口已存在则带到前台）
         self.friend_request_window.show()
-        self.friend_request_window.raise_()  # 窗口置顶
-        self.friend_request_window.activateWindow()  # 激活窗口
-
-    def handle_send_friend_request(self, username_or_email):
-        """处理发送好友申请"""
-        print(f"发送好友申请给: {username_or_email}")
-        # 这里应该调用实际的API发送请求
-        # 示例: self.api_client.send_friend_request(username_or_email)
-        
-    def handle_respond_request(self, username, accepted):
-        """处理对好友申请的响应"""
-        action = "同意" if accepted else "拒绝"
-        print(f"{action} {username} 的好友申请")
-        # 这里应该调用实际的API响应请求
-        # 示例: self.api_client.respond_to_request(username, accepted)
+        self.friend_request_window.raise_()
+        self.friend_request_window.activateWindow()
+    
+    def handle_friend_deleted(self):
+        """处理好友删除事件，触发更新好友列表信号"""
+        self.need_update_friends.emit()
