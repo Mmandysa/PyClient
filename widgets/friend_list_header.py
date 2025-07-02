@@ -86,3 +86,6 @@ class FriendListHeader(QWidget):
     def handle_friend_deleted(self):
         """处理好友删除事件，触发更新好友列表信号"""
         self.need_update_friends.emit()
+
+    def set_nickname(self, nickname):
+        self.nickname_label.setText(nickname)

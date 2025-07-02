@@ -67,10 +67,15 @@ class ProfileWidget(QWidget):
         info_layout.setSpacing(12)
         
         self.add_info_row(info_layout, "用户名", self.user_data.get("username", ""), editable=False)
+        nickname = self.user_data.get("nickname")
+        print(f"Debug: User nickname is {nickname}")
+        if nickname is None:
+            nickname = ""
+
         self.nickname_edit = self.add_info_row(
             info_layout,
             "昵称", 
-            self.user_data.get("nickname", self.user_data.get("username", "")),
+            nickname,
             editable=self.is_current_user
         )
         self.add_info_row(info_layout, "邮箱", self.user_data.get("email", ""), editable=False)

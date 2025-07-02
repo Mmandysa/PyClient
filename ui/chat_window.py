@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
-from panel.connect import getlist, addfriend, deletefriend, updateinfo
+from panel.connect import getlist, addfriend, deletefriend, updateinfo, get_user_profile
 from widgets.profile_widget import ProfileDialog
 
 # 添加项目根目录到Python路径
@@ -32,6 +32,16 @@ class ChatWindow(QMainWindow):
         self.current_friend = None
         self.setWindowTitle(f"我的QQ - {username}")
         self.setGeometry(100, 100, 800, 600)
+
+        # 用户数据初始化
+        self.user_data = get_user_profile()
+        if "error" in self.user_data:
+            QMessageBox.critical(self, "错误", self.user_data["message"])
+            self.user_data = {
+                "username": self.current_user,
+                "nickname": "",  # fallback
+                "email": ""
+            }
         
         # 主分割布局
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -58,14 +68,6 @@ class ChatWindow(QMainWindow):
         )
         # 连接好友列表更新信号
         self.friend_list_header.need_update_friends.connect(self.init_friends)
-
-        # 用户数据初始化
-        self.user_data = {
-            "username": self.current_user,
-            "nickname": self.current_user,  
-            "email": f"{self.current_user}@example.com"
-        }
-        self.friends_data = {} 
     
     def create_friend_list(self):
         """创建好友列表区域"""
@@ -76,7 +78,7 @@ class ChatWindow(QMainWindow):
         left_widget.setLayout(left_layout)
         
         # 添加顶部头像和搜索框
-        self.friend_list_header = FriendListHeader(self.current_user)
+        self.friend_list_header = FriendListHeader(self.user_data.get("nickname", self.current_user))
         left_layout.addWidget(self.friend_list_header)
         
         # 好友列表
@@ -159,6 +161,8 @@ class ChatWindow(QMainWindow):
             self.append_message(self.username, f"[文件] {file_name}", True)
 
     def init_friends(self):
+        if not hasattr(self, "friends_data"):
+            self.friends_data = {}
         """初始化好友列表数据"""
         try:
             response = getlist()
@@ -174,18 +178,26 @@ class ChatWindow(QMainWindow):
             for friend_data in response.get("friends", []):
                 try:
                     friend = Friend(
-                        user_id=friend_data["user_id"],
-                        username=friend_data["user_id"],
-                        nickname=friend_data["user_nickname"],
-                        status=friend_data["user_status"],
-                        ip=friend_data["user_ipaddr"],
-                        port=friend_data["user_port"],
+                        user_id=friend_data.get("userid"),
+                        username=friend_data.get("username"),
+                        nickname=friend_data.get("nickname", ""),
+                        status=friend_data.get("user_status", ""),
+                        ip=friend_data.get("user_ipaddr", ""),
+                        port=friend_data.get("user_port", ""),
                     )
                     self.friends.append(friend)
                     self.friends_list.append(friend.username)
                     self.add_friend_item(friend)
-                except KeyError as e:
-                    print(f"[错误] 好友数据字段缺失: {e}")
+                    
+                    # 保存好友数据
+                    self.friends_data[friend.username] = {
+                        "username": friend.username,
+                        "nickname": friend.nickname,
+                        "email": "",
+                        "friends": []
+                    }
+                except Exception as e:
+                    print(f"[错误] 好友数据字段缺失: {e}, 数据内容: {friend_data}")
                     continue
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载好友列表时出错: {str(e)}")
@@ -202,8 +214,9 @@ class ChatWindow(QMainWindow):
     def on_friend_selected(self, item):
         """好友选择事件处理"""
         index = self.friend_list.row(item)
-        self.current_friend = self.friends[index]
-        self.chat_title.setText(f"与 {self.current_friend.nickname} 聊天中")
+        if index < len(self.friends):
+            self.current_friend = self.friends[index]
+            self.chat_title.setText(f"与 {self.current_friend.nickname or self.current_friend.username} 聊天中")
     
     def clear_chat_area(self):
         """清空聊天区域"""
@@ -216,13 +229,6 @@ class ChatWindow(QMainWindow):
         """发送消息处理"""
         if message and self.current_friend:
             self.append_message(self.current_user, message, True)
-
-            if self.current_friend.username == "张三":
-                QTimer.singleShot(1000, lambda: self.append_message(
-                    self.current_friend.username,
-                    "自动回复: 你好，我现在不在线，稍后回复你",
-                    False
-                ))
 
     def append_message(self, sender, message, is_me):
         """添加消息到聊天区域"""
@@ -277,14 +283,12 @@ class ChatWindow(QMainWindow):
                 'friends': self.friends_list
             }
         else:
-            if username not in self.friends_data:
-                self.friends_data[username] = {
-                    "username": username,
-                    "nickname": f"{username}的昵称",
-                    "email": f"{username}@example.com",
-                    "friends": []
-                }
-            profile_data = self.friends_data[username]
+            profile_data = self.friends_data.get(username, {
+                "username": username,
+                "nickname": username,
+                "email": "",
+                "friends": []
+            })
         
         profile_dialog = ProfileDialog(
             user_data=profile_data,
@@ -310,13 +314,13 @@ class ChatWindow(QMainWindow):
                 'nickname': updated_data.get('nickname', self.user_data.get('nickname'))
             }
             
-            response = updateinfo(self.current_user, valid_data)
+            response = updateinfo(valid_data["nickname"])
             
             if response.get('success'):
                 self.user_data['nickname'] = valid_data['nickname']
                 
-                if hasattr(self, 'user_name_label'):
-                    self.user_name_label.setText(valid_data['nickname'])
+                if hasattr(self.friend_list_header, "set_nickname"):
+                    self.friend_list_header.set_nickname(valid_data['nickname'])
                 
                 if self.current_user in self.friends_data:
                     self.friends_data[self.current_user]['nickname'] = valid_data['nickname']
@@ -336,7 +340,7 @@ class ChatWindow(QMainWindow):
     def send_friend_request(self, username):
         """发送好友请求"""
         try:
-            response = addfriend("username", username)
+            response = addfriend(self.current_user, username)
             if "error" in response:
                 QMessageBox.warning(self, "错误", response["error"])
             else:

@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon
 
 from widgets.application_item import FriendRequestWidget
-from panel.connect import addfriend, deletefriend, show_friend_request_list, deal_friend_request
+from panel.connect import create_friend_request, deletefriend, show_friend_request_list, deal_friend_request
 
 class FriendRequestWindow(QMainWindow):
     """好友申请管理主窗口"""
@@ -135,8 +135,7 @@ class FriendRequestWindow(QMainWindow):
             self.add_btn.setEnabled(False)
             self.add_btn.setIcon(QIcon("icons/loading.png"))  # 加载中图标
             
-            is_email = "@" in search_text and "." in search_text
-            response = addfriend("email" if is_email else "username", search_text)
+            response = create_friend_request(search_text)
             
             if 'error' in response:
                 QMessageBox.critical(self, "错误", response['error'])
@@ -197,9 +196,10 @@ class FriendRequestWindow(QMainWindow):
         
         try:
             response = show_friend_request_list()
-            if isinstance(response, list):
-                for request in response:
-                    username = request.get("username") or request.get("email", "")
+            # 先判断返回结构
+            if isinstance(response, dict) and "data" in response and isinstance(response["data"], list):
+                for request in response["data"]:
+                    username = request.get("username") if isinstance(request, dict) else getattr(request, "username", None)
                     if username:
                         self.add_request(username)
             else:
@@ -231,7 +231,7 @@ class FriendRequestWindow(QMainWindow):
     def on_respond_request(self, username, accepted):
         """处理好友申请响应"""
         try:
-            action = "accept" if accepted else "reject"
+            action = 1 if accepted else 0
             response = deal_friend_request(username, action)
             
             if 'error' in response: 

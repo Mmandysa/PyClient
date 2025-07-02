@@ -18,10 +18,11 @@ def getlist():
     if response.status_code == 200:
         friends = data.get("friends", [])
         try:
-            for friend in friends:                              # 这些字段都是字典。                                      
-                user_id = friend.get("user_id")
-                user_nickname = friend.get("user_nickname")
-                user_pk = friend.get("user_pk")
+            for friend in friends:                       # 这些字段都是字典。                                      
+                user_id = friend.get("userid")
+                nickname = friend.get("nickname")
+                username = friend.get("username")
+                user_pk = friend.get("userpk")
                 user_status = friend.get("user_status")
                 user_ipaddr = friend.get("user_ipaddr")
                 user_port = friend.get("user_port")
@@ -105,6 +106,7 @@ def show_friend_request_list():
     headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
     response = requests.get(f"{Url}/showfriendrequestlist/", headers=headers)
     data = response.json()
+    print(data)
     
     if response.status_code == 200:
         return data
@@ -123,3 +125,23 @@ def show_self_friend_request_list():
         return {"error": "获取主动发起的好友申请列表失败", "message": data}
 
 
+def get_user_profile():
+    """获取当前用户个人资料"""
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    
+    profile_url = f"{Url}/profile/"  # <-- 请根据后端实际接口调整
+    response = requests.get(profile_url, headers=headers)
+    data = response.json()
+
+    if response.status_code == 200:
+        return {
+            "username": data.get("username", ""),
+            "nickname": data.get("nickname", ""),
+            "email": data.get("email", "")
+        }
+    else:
+        return {
+            "error": "获取用户资料失败",
+            "message": data.get("message", "")
+        }
