@@ -3,6 +3,7 @@ import os
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Util.Padding import pad, unpad
+from panel.Singleton import Singleton
 
 
 def is_base64(s: str) -> bool:
@@ -12,7 +13,7 @@ def is_base64(s: str) -> bool:
         return False
 
 
-class CryptoManager:
+class CryptoManager(Singleton):
     def __init__(self):
         if os.path.exists("rsa_key.pem"):
             with open("rsa_key.pem", "rb") as f:
@@ -32,11 +33,38 @@ class CryptoManager:
         return self.public_key_str, self.private_key_str
 
     def encrypt_session_key_for_friend(self, friend_public_key_str: str):
-        session_key = os.urandom(16)
-        friend_key = RSA.import_key(base64.b64decode(friend_public_key_str))
-        cipher_rsa = PKCS1_OAEP.new(friend_key)
-        encrypted_key = cipher_rsa.encrypt(session_key)
-        return base64.b64encode(encrypted_key).decode(), base64.b64encode(session_key).decode()
+        import os, base64
+        from Crypto.PublicKey import RSA
+        from Crypto.Cipher import PKCS1_OAEP
+
+        print("[DEBUG] Starting session key encryption for friend")
+
+        try:
+            session_key = os.urandom(16)
+            print(f"[DEBUG] Generated random session key (raw bytes): {session_key}")
+            print(f"[DEBUG] Generated random session key (base64): {base64.b64encode(session_key).decode()}")
+
+            friend_key_bytes = base64.b64decode(friend_public_key_str)
+            print(f"[DEBUG] Decoded friend's public key from base64, length: {len(friend_key_bytes)} bytes")
+
+            friend_key = RSA.import_key(friend_key_bytes)
+            print(f"[DEBUG] Imported friend's RSA public key: {friend_key.export_key().decode('utf-8').splitlines()[0]} ...")
+
+            cipher_rsa = PKCS1_OAEP.new(friend_key)
+            encrypted_key = cipher_rsa.encrypt(session_key)
+            print(f"[DEBUG] Encrypted session key length: {len(encrypted_key)} bytes")
+
+            encrypted_key_b64 = base64.b64encode(encrypted_key).decode()
+            session_key_b64 = base64.b64encode(session_key).decode()
+
+            print(f"[DEBUG] Encrypted session key (base64): {encrypted_key_b64}")
+
+            return encrypted_key_b64, session_key_b64
+
+        except Exception as e:
+            print(f"[ERROR] Failed to encrypt session key: {e}")
+            raise
+
 
     def decrypt_session_key(self, encrypted_key_str: str, private_key_str: str):
         encrypted_key = base64.b64decode(encrypted_key_str)

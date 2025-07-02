@@ -1,20 +1,24 @@
-# from settings import BaseUrl
-from .encrypt import *
-from .storage import SecureStorage
+from settings import BaseUrl
+from panel.encrypt import *
+from panel.storage import SecureStorage
 import requests
 
-Url = "myurlauth"
+Url = f"{BaseUrl}/api/auth"
+
 def register(username, password,email):
     cryptoManager = CryptoManager()
     public_key, private_key = cryptoManager.get_my_keys()
     
-    url = f"{Url}/register"
-    response = requests.post(url, json={
-        "username": username,
-        "password": sha256(password),
-        "email": email,
-        "public_key": public_key
-    })
+    url = f"{Url}/register/"
+    response = requests.post(
+        url,
+        json={
+            "username": username,
+            "password": sha256(password),
+            "email": email,
+            "userpk": public_key
+        }
+    )
     data = response.json()
     user_id = data.get("user_id")
     
@@ -23,12 +27,7 @@ def register(username, password,email):
     return data
 
 def login(type,username, password):
-    #调试用
-    if username=="admin":
-        return {"message":"OK"}
-    
-    
-    url = f"{Url}/login"
+    url = f"{Url}/login/"
     if type == "username":
         response = requests.post(url, json={
             "username": username,
@@ -42,11 +41,23 @@ def login(type,username, password):
     else:
         return {"error": "参数错误", "message": "type必须是'username'或'email'"}
     
+    token = response.json().get("token")
+    if token:
+        storage = SecureStorage()
+        user_id = storage.get_my_user_id()
+        storage.save_token(user_id, token)
+    
     return response.json()
 
 def logout():
-    url = f"{Url}/logout"
-    response = requests.post(url)
+    url = f"{Url}/logout/"
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.post(
+        url,
+        headers=headers,
+    )    
+    print(response.json())
     return response.json()
 
 def sha256(password):

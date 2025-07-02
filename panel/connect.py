@@ -1,42 +1,19 @@
-#from settings import BaseUrl
+from settings import BaseUrl
 import requests
-from .encrypt import *
-from .storage import SecureStorage
+from panel.encrypt import *
+from panel.storage import SecureStorage
+import logging
 
-Url = "baseurlconnect"
+logging.basicConfig(level=logging.DEBUG)
+
+Url = f"{BaseUrl}/api/contact"
 def getlist():
-    response={
-        "message": "获取好友列表成功",
-        "friends": [
-            {
-                "user_id": "user123",
-                "user_nickname": "张三",
-                "user_pk": "public_key_abc123",
-                "user_status": "online",
-                "user_ipaddr": "192.168.1.100",
-                "user_port": 8080
-            },
-            {
-                "user_id": "user456",
-                "user_nickname": "李四",
-                "user_pk": "public_key_def456",
-                "user_status": "offline",
-                "user_ipaddr": "10.0.0.15",
-                "user_port": 9090
-            },
-            {
-                "user_id": "user789",
-                "user_nickname": "王五",
-                "user_pk": "public_key_ghi789",
-                "user_status": "away",
-                "user_ipaddr": "172.16.0.20",
-                "user_port": 7070
-            }
-        ]
-    }
-    return response
-    response = requests.get(f"{Url}/getlist")
+    url = f"{Url}/getlist/"
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.get(url, headers=headers)
     data = response.json()
+    print(data)
 
     if response.status_code == 200:
         friends = data.get("friends", [])
@@ -62,14 +39,88 @@ def getlist():
     else:
         return {"error": "获取好友列表失败", "message": data.get("message", "")}
 
-def addfriend(user_id):
-    response = requests.post(f"{Url}/addfriend", json={"user_id": user_id})
+def addfriend(type,str):
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    if type == "username":
+        response = requests.post(f"{Url}/addfriend/", headers=headers, json={"username": str})
+    elif type == "email":
+        response = requests.post(f"{Url}/addfriend/", headers=headers, json={"email": str})
+    else:
+        return {"error": "参数错误", "message": "type必须是'username'或'email'"}
     return response.json()
 
-def deletefriend(user_id):
-    response = requests.post(f"{Url}/deletefriend", json={"user_id": user_id})
+def deletefriend(type,str):
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    if type == "username":
+        response = requests.post(f"{Url}/deletefriend/", headers=headers, json={"username": str})
+    elif type == "email":
+        response = requests.post(f"{Url}/deletefriend/", headers=headers, json={"email": str})
+    else:
+        return {"error": "参数错误", "message": "type必须是'username'或'email'"}
     return response.json()
 
-def updateinfo(user_nickname):
-    response = requests.post(f"{Url}/updateinfo", json={"user_nickname": user_nickname})
+def updateinfo(nickname):
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.post(f"{Url}/updateinfo/", headers=headers, json={"nickname": nickname})
     return response.json()
+
+
+def create_friend_request(username):
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.post(
+        f"{Url}/createfriendrequest/",
+        headers=headers,
+        json={"username": username}
+    )
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "创建好友申请失败", "message": data}
+
+def deal_friend_request(username, action):
+    token = SecureStorage().get_token(SecureStorage().get_my_user_id())
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.post(
+        f"{Url}/dealfriendrequest/",
+        headers=headers,
+        json={
+            "username": username,
+            "action": action
+        }
+    )
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "好友申请处理失败", "message": data}
+        
+
+def show_friend_request_list():
+    headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
+    response = requests.get(f"{Url}/showfriendrequestlist/", headers=headers)
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "获取好友申请列表失败", "message": data}
+
+
+def show_self_friend_request_list():
+    headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
+    response = requests.get(f"{Url}/showselfrequestlist/", headers=headers)
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "获取主动发起的好友申请列表失败", "message": data}
+
+
