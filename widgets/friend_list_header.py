@@ -1,14 +1,15 @@
-from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QLineEdit, QSizePolicy
-)
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QSizePolicy, QSpacerItem)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QIcon
 from widgets.avatar_label import AvatarLabel
+from ui.application_window import FriendRequestWindow
 
 __all__ = ['FriendListHeader']
 
 class FriendListHeader(QWidget):
-    # 添加信号，用于通知外部头像被点击
+    # 信号定义
     avatar_clicked = pyqtSignal(str)
+    add_button_clicked = pyqtSignal() 
     
     def __init__(self, username, parent=None):
         super().__init__(parent)
@@ -18,42 +19,82 @@ class FriendListHeader(QWidget):
     
     def setup_ui(self):
         """设置UI布局"""
-        layout = QHBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        # 创建头像标签
-        self.avatar = AvatarLabel(self.username, size=40)
-        self.avatar.setFixedSize(40, 40)
-        
-        # 连接头像点击信号
-        self.avatar.clicked.connect(self.handle_avatar_click)
-        
-        # 搜索框
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索好友...")
-        self.search_input.setStyleSheet("""
-            QLineEdit {
-                font-family: Microsoft YaHei;
-                font-size: 14px;
-                padding: 8px;
-                border: 1px solid #ccc;
-                border-radius: 15px;
-                background: white;
+        self.setStyleSheet("""
+            FriendListHeader {
+                background-color: #f5f5f5;
+                border-bottom: 1px solid #e0e0e0;
             }
         """)
-        self.search_input.setMinimumHeight(30)
-        self.search_input.setSizePolicy(
-            QSizePolicy.Policy.Expanding, 
-            QSizePolicy.Policy.Fixed
-        )
         
-        # 添加部件到布局
+        layout = QHBoxLayout()
+        layout.setContentsMargins(15, 10, 15, 10)  # 保持原有边距
+        layout.setSpacing(15)
+        
+        # 创建头像标签 (固定在左侧)
+        self.avatar = AvatarLabel(self.username, size=30)
+        self.avatar.setFixedSize(30, 30)
+        self.avatar.clicked.connect(self.handle_avatar_click)
         layout.addWidget(self.avatar)
-        layout.addWidget(self.search_input)
+        
+        # 添加水平弹簧
+        layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        
+        # 创建加号按钮 (固定在右侧)
+        self.add_button = QPushButton()
+        self.add_button.setFixedSize(30, 30)
+        self.add_button.setIcon(QIcon("icons/add.png"))
+        self.add_button.setIconSize(QSize(20, 20))
+        self.add_button.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background: #e6e6e6;
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background: #d6d6d6;
+                border: 1px solid #c6c6c6;
+            }
+            QPushButton:pressed {
+                background: #c6c6c6;
+            }
+        """)
+        self.add_button.setToolTip("添加好友")
+        self.add_button.clicked.connect(self.handle_add_button_click)
+        layout.addWidget(self.add_button)
         
         self.setLayout(layout)
     
     def handle_avatar_click(self):
         """处理头像点击事件"""
         self.avatar_clicked.emit(self.username)
+    
+    def handle_add_button_click(self):
+        """处理加号按钮点击事件 - 打开好友申请管理窗口"""
+        
+        # 检查是否已经存在窗口实例，避免重复创建
+        if not hasattr(self, 'friend_request_window'):
+            self.friend_request_window = FriendRequestWindow(
+                current_user=self.username,
+                parent=self  # 设置父组件确保窗口关闭时释放资源
+            )
+            # 连接信号到主窗口的处理方法
+            self.friend_request_window.send_request.connect(self.handle_send_friend_request)
+            self.friend_request_window.respond_request.connect(self.handle_respond_request)
+        
+        # 显示窗口（如果窗口已存在则带到前台）
+        self.friend_request_window.show()
+        self.friend_request_window.raise_()  # 窗口置顶
+        self.friend_request_window.activateWindow()  # 激活窗口
+
+    def handle_send_friend_request(self, username_or_email):
+        """处理发送好友申请"""
+        print(f"发送好友申请给: {username_or_email}")
+        # 这里应该调用实际的API发送请求
+        # 示例: self.api_client.send_friend_request(username_or_email)
+        
+    def handle_respond_request(self, username, accepted):
+        """处理对好友申请的响应"""
+        action = "同意" if accepted else "拒绝"
+        print(f"{action} {username} 的好友申请")
+        # 这里应该调用实际的API响应请求
+        # 示例: self.api_client.respond_to_request(username, accepted)

@@ -10,7 +10,7 @@ class AvatarLabel(QLabel):
         """
         初始化头像标签
         :param username: 用户名，用于生成头像
-        :param size: 头像尺寸
+        :param size: 头像尺寸（正方形边长）
         :param parent: 父组件
         """
         super().__init__(parent)
@@ -21,11 +21,11 @@ class AvatarLabel(QLabel):
     def setup_ui(self):
         """设置UI"""
         self.generate_avatar()  # 生成头像
-        self.setFixedSize(self.size, self.size)
+        self.setFixedSize(self.size, self.size)  # 正方形
         self.setCursor(Qt.CursorShape.PointingHandCursor)
     
     def generate_avatar(self):
-        """生成圆形头像，包含用户名的首字母"""
+        """生成正方形头像，包含用户名的首字母"""
         # 创建透明背景的图像
         image = QImage(self.size, self.size, QImage.Format.Format_ARGB32)
         image.fill(Qt.GlobalColor.transparent)
@@ -37,8 +37,8 @@ class AvatarLabel(QLabel):
         color = self._generate_color_from_username()
         painter.setBrush(QBrush(color))
 
-        # 2. 绘制圆形背景
-        painter.drawEllipse(0, 0, self.size, self.size)
+        # 2. 绘制正方形背景（不再是圆形）
+        painter.drawRect(0, 0, self.size, self.size)
 
         # 3. 绘制首字母
         painter.setPen(Qt.GlobalColor.white)
@@ -84,4 +84,4 @@ class AvatarLabel(QLabel):
 
     def sizeHint(self):
         """返回建议大小"""
-        return QSize(self.size, self.size)
+        return QSize(self.size, self.size)  # 保持正方形

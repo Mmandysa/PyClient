@@ -75,7 +75,7 @@ class ChatInputWidget(QWidget):
         self.file_btn = QToolButton()
         self.file_btn.setIcon(QIcon("icons/file.png"))
         self.file_btn.setToolTip("文件")
-        self.file_btn.clicked.connect(self.select_file)  # 连接文件选择方法
+        self.file_btn.clicked.connect(self.select_file) 
         
         self.image_btn = QToolButton()
         self.image_btn.setIcon(QIcon("icons/image.png"))

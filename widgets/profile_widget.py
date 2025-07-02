@@ -1,28 +1,21 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QLineEdit, QPushButton, QDialog, QMessageBox
+    QLineEdit, QPushButton, QDialog, QMessageBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont
 
 from widgets.avatar_label import AvatarLabel
-
 from panel.auth import logout
 
 class ProfileWidget(QWidget):
-    """个人资料展示和编辑组件"""
-    profile_updated = pyqtSignal(dict)  # 资料更新信号
-    add_friend_requested = pyqtSignal(str)  # 添加好友信号
-    send_message_requested = pyqtSignal(str)  # 发起聊天信号
-    logout_requested = pyqtSignal()  # 新增登出信号
+    """个人资料展示组件（默认背景色）"""
+    profile_updated = pyqtSignal(dict)
+    add_friend_requested = pyqtSignal(str)
+    send_message_requested = pyqtSignal(str)
+    logout_requested = pyqtSignal()
 
     def __init__(self, user_data, current_user=None, parent=None):
-        """
-        初始化
-        :param user_data: 用户数据字典，包含 username/nickname/email/friends 等字段
-        :param current_user: 当前登录用户名（用于判断是否显示编辑按钮）
-        :param parent: 父组件
-        """
         super().__init__(parent)
         self.user_data = user_data
         self.current_user = current_user
@@ -31,10 +24,10 @@ class ProfileWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """初始化界面布局"""
+        """初始化界面布局（使用默认背景色）"""
         self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(30, 30, 30, 30)
-        self.layout.setSpacing(20)
+        self.layout.setContentsMargins(30, 20, 30, 20)
+        self.layout.setSpacing(15)
         
         # 1. 头像区域
         self.setup_avatar_section()
@@ -48,55 +41,54 @@ class ProfileWidget(QWidget):
         self.setLayout(self.layout)
 
     def setup_avatar_section(self):
-        """设置头像显示区域"""
+        """头像显示区域"""
         avatar_container = QWidget()
         avatar_layout = QVBoxLayout()
+        avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 使用 AvatarLabel 显示圆形头像
+        # 头像使用默认背景
         self.avatar = AvatarLabel(
             self.user_data.get("username", ""), 
-            size=100,
+            size=180,
             parent=self
         )
-        self.avatar.setFixedSize(100, 100)
+        self.avatar.setFixedSize(180, 180)
         avatar_layout.addWidget(self.avatar)
         
         avatar_container.setLayout(avatar_layout)
         self.layout.addWidget(avatar_container)
 
     def setup_info_section(self):
-        """设置用户信息编辑区域"""
-        # 用户名（不可编辑）
-        self.add_info_row("用户名", self.user_data.get("username", ""), editable=False)
+        """信息区域（使用系统默认背景）"""
+        info_container = QWidget()
+        info_layout = QVBoxLayout()
+        info_layout.setContentsMargins(10, 0, 10, 0)
+        info_layout.setSpacing(12)
         
-        # 昵称（当前用户可编辑）
+        self.add_info_row(info_layout, "用户名", self.user_data.get("username", ""), editable=False)
         self.nickname_edit = self.add_info_row(
+            info_layout,
             "昵称", 
             self.user_data.get("nickname", self.user_data.get("username", "")),
             editable=self.is_current_user
         )
+        self.add_info_row(info_layout, "邮箱", self.user_data.get("email", ""), editable=False)
         
-        # 邮箱（不可编辑）
-        self.add_info_row("邮箱", self.user_data.get("email", ""), editable=False)
+        info_container.setLayout(info_layout)
+        self.layout.addWidget(info_container)
 
-    def add_info_row(self, label, value, editable):
-        """
-        添加一行信息项
-        :param label: 字段标签（如"用户名"）
-        :param value: 字段值
-        :param editable: 是否可编辑
-        """
-        container = QWidget()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+    def add_info_row(self, layout, label, value, editable):
+        """添加信息行（保持原有样式）"""
+        row = QWidget()
+        row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(10)
         
-        # 字段标签
         lbl = QLabel(f"{label}:")
-        lbl.setFixedWidth(80)
+        lbl.setFixedWidth(60)
         lbl.setFont(QFont("Microsoft YaHei", 10))
         
-        # 内容控件（根据是否可编辑选择 QLineEdit 或 QLabel）
         if editable:
             edit = QLineEdit()
             edit.setText(value)
@@ -104,19 +96,17 @@ class ProfileWidget(QWidget):
                 QLineEdit {
                     border: 1px solid #ddd;
                     border-radius: 4px;
-                    padding: 6px;
+                    padding: 6px 8px;
                 }
             """)
-            self.current_edit = edit  # 保存引用用于后续获取值
+            content_widget = edit
         else:
-            edit = QLabel(value)
-            edit.setStyleSheet("QLabel { color: #555; }")
+            content_widget = QLabel(value)
         
-        layout.addWidget(lbl)
-        layout.addWidget(edit)
-        layout.addStretch()
-        container.setLayout(layout)
-        self.layout.addWidget(container)
+        row_layout.addWidget(lbl)
+        row_layout.addWidget(content_widget, stretch=1)
+        row.setLayout(row_layout)
+        layout.addWidget(row)
         
         return edit if editable else None
 
@@ -282,21 +272,13 @@ class ProfileWidget(QWidget):
 
 
 class ProfileDialog(QDialog):
-    """封装的个人资料对话框"""
+    """个人资料对话框（使用默认背景）"""
     def __init__(self, user_data, current_user=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self._generate_title(user_data, current_user))
-        self.setFixedSize(400, 350)
+        self.setFixedSize(400, 500)  # 固定对话框大小
         
-        # 设置对话框样式
-        self.setStyleSheet("""
-            QDialog {
-                background: #f9f9f9;
-                font-family: Microsoft YaHei;
-            }
-        """)
-        
-        # 初始化内部组件
+        # 使用系统默认样式（移除了自定义背景色）
         self.profile_widget = ProfileWidget(
             user_data=user_data,
             current_user=current_user,
@@ -306,8 +288,13 @@ class ProfileDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self.profile_widget)
         
-        # 连接信号
         self.profile_widget.profile_updated.connect(self.close)
+
+    @staticmethod
+    def _generate_title(user_data, current_user):
+        if current_user == user_data.get('username'):
+            return "我的资料"
+        return f"{user_data.get('nickname', user_data.get('username', ''))}的资料"
 
     @staticmethod
     def _generate_title(user_data, current_user):

@@ -67,7 +67,6 @@ def updateinfo(nickname):
     response = requests.post(f"{Url}/updateinfo/", headers=headers, json={"nickname": nickname})
     return response.json()
 
-
 def create_friend_request(username):
     token = SecureStorage().get_token(SecureStorage().get_my_user_id())
     headers = {"Authorization": f"Token {token}"}
