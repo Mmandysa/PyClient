@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
-from panel.connect import getlist, addfriend, deletefriend, updateinfo, get_user_profile
+from panel.connect import getlist, addfriend, updateinfo, get_user_profile
+from panel.auth import logout
 from widgets.profile_widget import ProfileDialog
 
 # 添加项目根目录到Python路径
@@ -24,6 +25,8 @@ from widgets.profile_widget import ProfileWidget
 from widgets.chat_input import ChatInputWidget
 
 class ChatWindow(QMainWindow):
+    logout_requested = pyqtSignal() 
+    
     def __init__(self, username):
         super().__init__()
         self.current_user = username
@@ -296,16 +299,48 @@ class ChatWindow(QMainWindow):
             parent=self
         )
         
-        if not is_current_user:
+        # 连接登出信号
+        if is_current_user:
+            profile_dialog.profile_widget.logout_requested.connect(self.handle_logout)
+            profile_dialog.profile_widget.profile_updated.connect(
+                self.update_profile)
+        else:
             profile_dialog.profile_widget.add_friend_requested.connect(
                 lambda: self.send_friend_request(username))
             profile_dialog.profile_widget.send_message_requested.connect(
                 lambda: self.start_private_chat(username))
-        else:
-            profile_dialog.profile_widget.profile_updated.connect(
-                self.update_profile)
         
         profile_dialog.exec()
+
+    def handle_logout(self):
+        """处理登出请求"""
+        try:
+            response = logout()
+            if 'error' not in response:
+                # 登出成功
+                self.logout_requested.emit()  # 通知主窗口
+                self.close()  # 关闭聊天窗口
+                
+                # 清理数据
+                self.cleanup_session_data()
+                
+                # 显示登录界面
+                self.show_login_window()
+            else:
+                QMessageBox.warning(self, "错误", response.get('error', '登出失败'))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"登出时出错: {str(e)}")
+
+    def cleanup_session_data(self):
+        """清理会话数据"""
+        # 这里可以添加清理本地缓存、cookie等逻辑
+        pass
+
+    def show_login_window(self):
+        """显示登录窗口"""
+        from ui.login_register import LoginRegisterWindow
+        login_window = LoginRegisterWindow()
+        login_window.show()
 
     def update_profile(self, updated_data):
         """更新个人资料"""

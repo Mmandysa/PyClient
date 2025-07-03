@@ -9,11 +9,11 @@ from widgets.avatar_label import AvatarLabel
 from panel.auth import logout
 
 class ProfileWidget(QWidget):
-    """个人资料展示组件（默认背景色）"""
+    """个人资料展示组件"""
     profile_updated = pyqtSignal(dict)
     add_friend_requested = pyqtSignal(str)
     send_message_requested = pyqtSignal(str)
-    logout_requested = pyqtSignal()
+    logout_requested = pyqtSignal()  # 新增登出信号
 
     def __init__(self, user_data, current_user=None, parent=None):
         super().__init__(parent)
@@ -24,7 +24,7 @@ class ProfileWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """初始化界面布局（使用默认背景色）"""
+        """初始化界面布局"""
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(30, 20, 30, 20)
         self.layout.setSpacing(15)
@@ -47,7 +47,6 @@ class ProfileWidget(QWidget):
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 头像使用默认背景
         self.avatar = AvatarLabel(
             self.user_data.get("username", ""), 
             size=180,
@@ -60,31 +59,29 @@ class ProfileWidget(QWidget):
         self.layout.addWidget(avatar_container)
 
     def setup_info_section(self):
-        """信息区域（使用系统默认背景）"""
+        """信息区域"""
         info_container = QWidget()
         info_layout = QVBoxLayout()
         info_layout.setContentsMargins(10, 0, 10, 0)
         info_layout.setSpacing(12)
         
         self.add_info_row(info_layout, "用户名", self.user_data.get("username", ""), editable=False)
-        nickname = self.user_data.get("nickname")
-        print(f"Debug: User nickname is {nickname}")
-        if nickname is None:
-            nickname = ""
-
+        
+        nickname = self.user_data.get("nickname", "")
         self.nickname_edit = self.add_info_row(
             info_layout,
             "昵称", 
             nickname,
             editable=self.is_current_user
         )
+        
         self.add_info_row(info_layout, "邮箱", self.user_data.get("email", ""), editable=False)
         
         info_container.setLayout(info_layout)
         self.layout.addWidget(info_container)
 
     def add_info_row(self, layout, label, value, editable):
-        """添加信息行（保持原有样式）"""
+        """添加信息行"""
         row = QWidget()
         row_layout = QHBoxLayout()
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -162,7 +159,6 @@ class ProfileWidget(QWidget):
             # 非当前用户显示互动按钮
             btn_layout.addStretch()
             
-            # 如果不是好友，显示"添加好友"按钮
             if not self._is_friend():
                 self.add_btn = QPushButton("添加好友")
                 self.add_btn.setStyleSheet(self.get_button_style("#2196F3"))
@@ -171,7 +167,6 @@ class ProfileWidget(QWidget):
                 )
                 btn_layout.addWidget(self.add_btn)
             
-            # 显示"发送消息"按钮
             self.msg_btn = QPushButton("发送消息")
             self.msg_btn.setStyleSheet(self.get_button_style("#ff9800"))
             self.msg_btn.clicked.connect(
@@ -200,7 +195,7 @@ class ProfileWidget(QWidget):
 
     @staticmethod
     def darken_color(hex_color, factor=0.8):
-        """颜色变暗效果（用于按钮hover状态）"""
+        """颜色变暗效果"""
         hex_color = hex_color.lstrip('#')
         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         darkened = tuple(int(c * factor) for c in rgb)
@@ -221,14 +216,12 @@ class ProfileWidget(QWidget):
             QMessageBox.information(self, "提示", "昵称未修改")
             return
         
-        # 发射信号通知外部保存
         self.profile_updated.emit({
             "nickname": new_nickname
         })
 
     def on_logout_clicked(self):
         """处理登出按钮点击"""
-        # 确认对话框
         reply = QMessageBox.question(
             self, 
             "确认退出",
@@ -239,51 +232,33 @@ class ProfileWidget(QWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                # 显示加载状态
                 self.logout_btn.setEnabled(False)
                 self.logout_btn.setText("登出中...")
                 
-                # 调用API
                 response = logout()
                 
                 # 判断是否有error字段
                 if 'error' not in response:
-                    # 登出成功
+                    # 登出成功，发射信号
                     self.logout_requested.emit()
-                    self.window().close()
+                    # 关闭当前窗口
+                    if self.parent() and hasattr(self.parent(), 'close'):
+                        self.parent().close()
                 else:
-                    # 登出失败，显示错误信息
-                    QMessageBox.warning(
-                        self,
-                        "登出失败",
-                        response.get('error', '登出请求失败')
-                    )
-            except ConnectionError:
-                QMessageBox.critical(
-                    self,
-                    "网络错误",
-                    "无法连接到服务器，请检查网络连接"
-                )
+                    QMessageBox.warning(self, "登出失败", response.get('error', '登出请求失败'))
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "错误",
-                    f"发生未知错误: {str(e)}"
-                )
+                QMessageBox.critical(self, "错误", f"登出时出错: {str(e)}")
             finally:
-                # 恢复按钮状态
                 self.logout_btn.setEnabled(True)
                 self.logout_btn.setText("退出登录")
 
-
 class ProfileDialog(QDialog):
-    """个人资料对话框（使用默认背景）"""
+    """个人资料对话框"""
     def __init__(self, user_data, current_user=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self._generate_title(user_data, current_user))
-        self.setFixedSize(400, 500)  # 固定对话框大小
+        self.setFixedSize(400, 500)
         
-        # 使用系统默认样式（移除了自定义背景色）
         self.profile_widget = ProfileWidget(
             user_data=user_data,
             current_user=current_user,
@@ -293,13 +268,15 @@ class ProfileDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self.profile_widget)
         
+        # 连接信号
         self.profile_widget.profile_updated.connect(self.close)
+        self.profile_widget.logout_requested.connect(self.handle_logout)
 
-    @staticmethod
-    def _generate_title(user_data, current_user):
-        if current_user == user_data.get('username'):
-            return "我的资料"
-        return f"{user_data.get('nickname', user_data.get('username', ''))}的资料"
+    def handle_logout(self):
+        """处理登出信号"""
+        self.accept()  # 关闭对话框
+        if self.parent():
+            self.parent().close()  # 关闭父窗口(聊天窗口)
 
     @staticmethod
     def _generate_title(user_data, current_user):
