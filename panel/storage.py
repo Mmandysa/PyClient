@@ -3,10 +3,13 @@ import sqlite3
 from panel.Singleton import Singleton
 from datetime import datetime
 from time import time
-from panel.connect import *
+
 import logging
 
 class SecureStorage(Singleton):
+
+    storable_data = [str, bytes]
+
     def __init__(self):
         self.db_path = "db"
         self._init_db()
@@ -29,13 +32,24 @@ class SecureStorage(Singleton):
             
             cursor.execute(
                 '''
-                    create table if not exists messages (
+                    create table if not exists recv_messages (
                         user_id integer not null,
                         message text not null,
                         time varchar(20) not null
                     )
                 '''
             )
+
+            cursor.execute(
+                '''
+                    create table if not exists sent_messages (
+                        user_id integer not null,
+                        message text not null,
+                        time varchar(20) not null
+                    )
+                '''
+            )
+
             
             cursor.execute(
                 '''           
@@ -91,6 +105,18 @@ class SecureStorage(Singleton):
             conn.close()
         except Exception as e:
             print(f"Error saving key: {e}")
+
+    def save_session_key(self, user_id, session_key):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                update friends set session_key = ? where user_id = ?
+            ''', (session_key, user_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error saving session key: {e}")
         
     def get_public_key(self, user_id):
         try:
@@ -146,11 +172,14 @@ class SecureStorage(Singleton):
             # 先检查是否已存在记录
             cursor.execute('SELECT 1 FROM my_userid')
             if cursor.fetchone():  # 如果已有记录
-                print(f"用户ID已存在，无需重复保存")
-                return
-            cursor.execute('''
-                insert into my_userid (user_id) values (?)
-            ''', (user_id,))
+                print(f"用户ID已存在，更新为新的用户ID:{user_id}")
+                cursor.execute('''
+                    update my_userid set user_id = ?
+                ''', (user_id,))
+            else:
+                cursor.execute('''
+                    insert into my_userid (user_id) values (?)
+                ''', (user_id,))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -176,7 +205,43 @@ class SecureStorage(Singleton):
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
                 
-    def save_message(self, user_id: int, message: str, timestamp=None):
+    def save_recv_data(self, user_id: int, message: str, timestamp=None):
+        import sqlite3
+        from datetime import datetime
+        print("--------------------------------------------------------------------------")
+        print(f"[MSG] Saving received message for user_id={user_id}")
+        
+        try:
+            if timestamp is None:
+                timestamp = datetime.now()
+                print(f"[MSG] No timestamp provided, using current time: {timestamp}")
+
+            time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[MSG] Formatted timestamp: {time_str}")
+            print(f"[MSG] Message to save: {message}")
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            print(f"[MSG] Database connection to '{self.db_path}' established.")
+
+            cursor.execute('''
+                INSERT INTO recv_messages (user_id, message, time) VALUES (?, ?, ?)
+            ''', (user_id, message, time_str))
+            print(f"[MSG] Executed SQL insert for user_id={user_id}")
+
+            conn.commit()
+            print(f"[MSG] Commit successful, message saved.")
+        
+        except Exception as e:
+            print(f"[ERROR] Error saving message for user_id={user_id}: {e}")
+        
+        finally:
+            if 'conn' in locals():
+                conn.close()
+                print(f"[MSG] Database connection closed.")
+                print("--------------------------------------------------------------------------")
+
+    def save_sent_data(self, user_id: int, message: str, timestamp=None):
         try:
             # 如果没有提供时间，使用当前时间
             if timestamp is None:
@@ -188,7 +253,41 @@ class SecureStorage(Singleton):
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute('''
-                insert into messages (user_id, message, time) values (?, ?, ?)
+                insert into sent_messages (user_id, message, time) values (?, ?, ?)
+            ''', (user_id, message, time_str))  # 使用格式化后的时间字符串
+            conn.commit()
+        except Exception as e:
+            print(f"Error saving message: {e}")
+        finally:
+            if conn:
+                conn.close()       
+
+    def read_message(self,user_id:str):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                select * from messages where user_id = ?
+            ''', (user_id,))
+            message = cursor.fetchall()
+            conn.close()
+        except Exception as e:
+            print(f"Error reading message: {e}")
+            message = None
+        return message
+    def save_sent_data(self, user_id: int, message: str, timestamp=None):
+        try:
+            # 如果没有提供时间，使用当前时间
+            if timestamp is None:
+                timestamp = datetime.now()
+            
+            # 将时间转换为字符串格式
+            time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                insert into sent_messages (user_id, message, time) values (?, ?, ?)
             ''', (user_id, message, time_str))  # 使用格式化后的时间字符串
             conn.commit()
         except Exception as e:
@@ -196,13 +295,13 @@ class SecureStorage(Singleton):
         finally:
             if conn:
                 conn.close()
-            
-    def read_message(self,user_id:str):
+
+    def read_recv_data(self,user_id:str):
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute('''
-                select * from messages where user_id = ?
+                select * from recv_messages where user_id = ?
             ''', (user_id,))
             message = cursor.fetchall()
             conn.close()

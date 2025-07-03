@@ -1,16 +1,22 @@
-import base64
 import os
+import base64
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Util.Padding import pad, unpad
 from panel.Singleton import Singleton
 
 
-def is_base64(s: str) -> bool:
-    try:
-        return base64.b64encode(base64.b64decode(s)) == s.encode()
-    except Exception:
-        return False
+def b64encode(data: bytes) -> str:
+    return base64.b64encode(data).decode('ascii')
+
+
+def b64decode(data: str) -> bytes:
+    return base64.b64decode(data)
+
+
+def _check_aes_key_len(key: bytes):
+    if len(key) not in (16, 24, 32):
+        raise ValueError(f"AES key length must be 16/24/32 bytes, got {len(key)}")
 
 
 class CryptoManager(Singleton):
@@ -18,175 +24,145 @@ class CryptoManager(Singleton):
         if os.path.exists("rsa_key.pem"):
             with open("rsa_key.pem", "rb") as f:
                 self.rsa_key = RSA.import_key(f.read())
-            self.private_key_str = base64.b64encode(self.rsa_key.export_key()).decode()
-            self.public_key_str = base64.b64encode(self.rsa_key.publickey().export_key()).decode()
-            return
         else:
             self.rsa_key = RSA.generate(2048)
-            self.private_key_str = base64.b64encode(self.rsa_key.export_key()).decode()
-            self.public_key_str = base64.b64encode(self.rsa_key.publickey().export_key()).decode()
             with open("rsa_key.pem", "wb") as f:
                 f.write(self.rsa_key.export_key())
 
+        # 公私钥均为 base64(PEM bytes) ascii str
+        self.private_key_str = b64encode(self.rsa_key.export_key())
+        self.public_key_str = b64encode(self.rsa_key.publickey().export_key())
 
     def get_my_keys(self):
+        """返回 (public_key_base64_str, private_key_base64_str)"""
         return self.public_key_str, self.private_key_str
 
-    def encrypt_session_key_for_friend(self, friend_public_key_str: str):
-        import os, base64
-        from Crypto.PublicKey import RSA
-        from Crypto.Cipher import PKCS1_OAEP
+    def encrypt_session_key_for_friend(self, friend_public_key_b64: str):
+        """
+        用好友公钥RSA加密随机生成的AES会话密钥
+        返回 dict:
+          {
+            "encrypted_key": base64 string, # RSA加密AES密钥
+            "session_key": base64 string    # AES原始密钥，调试/对比用
+          }
+        """
+        session_key = os.urandom(16)
+        friend_key = RSA.import_key(b64decode(friend_public_key_b64))
+        cipher_rsa = PKCS1_OAEP.new(friend_key)
+        encrypted_key = cipher_rsa.encrypt(session_key)
 
-        print("[DEBUG] Starting session key encryption for friend")
+        return {
+            "encrypted_key": b64encode(encrypted_key),
+            "session_key": b64encode(session_key)
+        }
 
-        try:
-            session_key = os.urandom(16)
-            print(f"[DEBUG] Generated random session key (raw bytes): {session_key}")
-            print(f"[DEBUG] Generated random session key (base64): {base64.b64encode(session_key).decode()}")
+    def decrypt_session_key(self, encrypted_key, private_key_b64: str = None,message_type="str"):
+        """
+        用本地私钥RSA解密加密的AES密钥，返回 base64编码的原始AES密钥
+        """
+        
+        if private_key_b64 is None:
+            private_key_b64 = self.private_key_str
+            
+        if message_type == "str":
+            encrypted_key_bytes = b64decode(encrypted_key)
+        
+        elif message_type ==  "bytes":
+            encrypted_key_bytes = encrypted_key
 
-            friend_key_bytes = base64.b64decode(friend_public_key_str)
-            print(f"[DEBUG] Decoded friend's public key from base64, length: {len(friend_key_bytes)} bytes")
-
-            friend_key = RSA.import_key(friend_key_bytes)
-            print(f"[DEBUG] Imported friend's RSA public key: {friend_key.export_key().decode('utf-8').splitlines()[0]} ...")
-
-            cipher_rsa = PKCS1_OAEP.new(friend_key)
-            encrypted_key = cipher_rsa.encrypt(session_key)
-            print(f"[DEBUG] Encrypted session key length: {len(encrypted_key)} bytes")
-
-            encrypted_key_b64 = base64.b64encode(encrypted_key).decode()
-            session_key_b64 = base64.b64encode(session_key).decode()
-
-            print(f"[DEBUG] Encrypted session key (base64): {encrypted_key_b64}")
-
-            return encrypted_key_b64, session_key_b64
-
-        except Exception as e:
-            print(f"[ERROR] Failed to encrypt session key: {e}")
-            raise
-
-
-    def decrypt_session_key(self, encrypted_key_str: str, private_key_str: str):
-        encrypted_key = base64.b64decode(encrypted_key_str)
-        private_key = RSA.import_key(base64.b64decode(private_key_str))
+            
+        private_key_bytes = b64decode(private_key_b64)
+        private_key = RSA.import_key(private_key_bytes)    
         cipher_rsa = PKCS1_OAEP.new(private_key)
-        session_key = cipher_rsa.decrypt(encrypted_key)
-        return base64.b64encode(session_key).decode()
+        try:
+            session_key_bytes = cipher_rsa.decrypt(encrypted_key_bytes)
+        except Exception as e:
+            print("[DEBUG] encrypted_key_bytes:", encrypted_key_bytes)
+            print("[DEBUG] type(encrypted_key_bytes):", type(encrypted_key_bytes))
+            print("[DEBUG] len(encrypted_key_bytes):", len(encrypted_key_bytes))
+            print("[ERROR] Failed to decrypt session key:", e)
+        
+        return b64encode(session_key_bytes)
 
-    def aes_decrypt_auto(self, cipher_b64_with_type: str, base64_key_str: str):
+
+    def aes_encrypt_auto(self, content: str, key_b64: str):
         """
-        自动处理解密，返回原始内容（str 或 base64 或 bytes）
+        使用 AES CBC + PKCS7 填充加密字符串
+        返回 dict:
+          {
+            "encrypted_message": base64 string,
+            "message_type": "str"
+          }
         """
-        if ':' not in cipher_b64_with_type:
-            raise ValueError("密文格式错误，缺少类型信息")
+        key = b64decode(key_b64)
+        _check_aes_key_len(key)
 
-        content_type, cipher_b64 = cipher_b64_with_type.split(':', 1)
+        iv = os.urandom(16)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        ciphertext = cipher.encrypt(pad(content.encode('utf-8'), AES.block_size))
+        return {
+            "encrypted_message": b64encode(iv + ciphertext),
+            "message_type": "str"
+        }
 
-        raw = base64.b64decode(cipher_b64)
-        key = base64.b64decode(base64_key_str)
-        iv = raw[:16]
-        ciphertext = raw[16:]
+    def aes_decrypt_auto(self, encrypted_message_b64: str, key_b64: str, message_type: str):
+        """
+        解密 AES CBC 加密消息，返回字符串（通常是明文）
+        """
+        key = b64decode(key_b64)
+        _check_aes_key_len(key)
+
+        raw = b64decode(encrypted_message_b64)
+        iv, ciphertext = raw[:16], raw[16:]
         cipher = AES.new(key, AES.MODE_CBC, iv)
         plaintext = unpad(cipher.decrypt(ciphertext), AES.block_size)
 
-        if content_type == 'str':
+        if message_type == 'str':
             return plaintext.decode('utf-8')
-        elif content_type == 'base64':
-            return base64.b64encode(plaintext).decode()
-        elif content_type == 'bytes':
+        elif message_type == 'base64':
+            return b64encode(plaintext)
+        elif message_type == 'bytes':
             return plaintext
         else:
-            raise ValueError("未知的内容类型")
+            raise ValueError(f"未知 message_type: {message_type}")
 
-    def aes_encrypt_auto(self, content, base64_key_str: str):
-        """
-        自动处理 str / bytes / base64 编码输入，加密并返回 base64(IV + ciphertext)
-        """
-        key = base64.b64decode(base64_key_str)
-        iv = os.urandom(16)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
+def test_p2p_communication():
+    alice = CryptoManager()
+    bob = CryptoManager()
 
-        # 🧠 自动识别并处理输入内容
-        if isinstance(content, bytes):
-            raw = content
-            content_type = 'bytes'
-        elif isinstance(content, str):
-            if is_base64(content):
-                raw = base64.b64decode(content)
-                content_type = 'base64'
-            else:
-                raw = content.encode('utf-8')
-                content_type = 'str'
-        else:
-            raise TypeError("内容必须是 str 或 bytes")
+    # Alice、Bob 各自拿公钥（base64字符串）
+    alice_pub = alice.public_key_str
+    bob_pub = bob.public_key_str
 
-        ciphertext = cipher.encrypt(pad(raw, AES.block_size))
-        result = base64.b64encode(iv + ciphertext).decode()
-        return f"{content_type}:{result}"
-    
-    
+    print("[Alice] 公钥:", alice_pub[:40] + "...")
+    print("[Bob] 公钥:", bob_pub[:40] + "...")
 
-def test_with_plain_text():
-    print("🧪 测试原文输入加密")
-    cm = CryptoManager()
-    pub, pri = cm.get_my_keys()
+    # Bob 用 Alice 公钥生成 AES session key，并加密
+    res = bob.encrypt_session_key_for_friend(alice_pub)
+    encrypted_key = res['encrypted_key']
+    session_key = res['session_key']
+    print("[Bob] 生成并加密的 AES 会话密钥:", session_key)
 
-    encrypted_session_key, session_key = cm.encrypt_session_key_for_friend(pub)
-    print("🔐 原始 AES session_key:", session_key)
+    # Alice 用自己的私钥解密 AES session key
+    decrypted_session_key = alice.decrypt_session_key(encrypted_key)
+    print("[Alice] 解密出的 AES 会话密钥:", decrypted_session_key)
+    assert decrypted_session_key == session_key
 
-    msg = "你好，世界！这是原文消息。"
-    encrypted = cm.aes_encrypt_auto(msg, session_key)
-    print("📦 加密后:", encrypted)
+    # Bob 用 AES 会话密钥加密消息给 Alice
+    plaintext = "Hello Alice, this is Bob."
+    encrypted_msg_obj = bob.aes_encrypt_auto(plaintext, session_key)
+    encrypted_msg = encrypted_msg_obj['encrypted_message']
+    message_type = encrypted_msg_obj['message_type']
+    print("[Bob] AES加密消息:", encrypted_msg)
 
-    decrypted = cm.aes_decrypt_auto(encrypted, session_key)
-    print("🔓 解密后:", decrypted)
-    assert decrypted == msg
+    # Alice 解密消息
+    decrypted_msg = alice.aes_decrypt_auto(encrypted_msg, decrypted_session_key, message_type)
+    print("[Alice] 解密消息:", decrypted_msg)
+    assert decrypted_msg == plaintext
 
+    print("✅ P2P通信测试通过！")
 
-def test_with_base64_input():
-    print("🧪 测试 base64 输入加密")
-    cm = CryptoManager()
-    pub, pri = cm.get_my_keys()
-
-    encrypted_session_key, session_key = cm.encrypt_session_key_for_friend(pub)
-
-    raw_bytes = b"\xff\xd8\xff\xe0"  # 模拟图片或二进制内容（非 UTF-8）
-    base64_input = base64.b64encode(raw_bytes).decode()
-    print("📄 模拟 base64 输入:", base64_input)
-
-    encrypted = cm.aes_encrypt_auto(base64_input, session_key)
-    print("📦 加密后:", encrypted)
-
-    decrypted = cm.aes_decrypt_auto(encrypted, session_key)
-    print("🔓 解密后 (仍是 base64):", decrypted)
-    assert decrypted == base64_input
-
-def test_with_bytes_input():
-    
-    print("🧪 测试 bytes 输入加密")
-    cm = CryptoManager()
-    pub, pri = cm.get_my_keys()
-    _, session_key = cm.encrypt_session_key_for_friend(pub)
-
-    raw_bytes = b"\x00\x01\x02\x03hello\xff\xfe"
-    print("📄 原始字节:", raw_bytes)
-
-    encrypted = cm.aes_encrypt_auto(raw_bytes, session_key)
-    print("📦 加密后:", encrypted)
-
-    decrypted = cm.aes_decrypt_auto(encrypted, session_key)
-    print("🔓 解密后:", decrypted)
-    assert decrypted == raw_bytes
-    
-def remove_pem_file():
-    if __name__ == "__main__":
-        if os.path.exists("rsa_key.pem"):
-            os.remove("rsa_key.pem")
 
 if __name__ == "__main__":
-    test_with_plain_text()
-    print("\n" + "=" * 60 + "\n")
-    test_with_base64_input()
-    print("\n" + "=" * 60 + "\n")
-    test_with_bytes_input()
-    remove_pem_file()
+    test_p2p_communication()
+
