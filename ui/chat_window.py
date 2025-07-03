@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
-from panel.connect import getlist, addfriend, updateinfo, get_user_profile
 from panel.auth import logout
+from panel.connect import getlist, addfriend, deletefriend, updateinfo, get_user_profile, send_offline_message, get_offline_message, delete_offline_message
 from widgets.profile_widget import ProfileDialog
 
 # 添加项目根目录到Python路径
@@ -232,6 +232,26 @@ class ChatWindow(QMainWindow):
         """发送消息处理"""
         if message and self.current_friend:
             self.append_message(self.current_user, message, True)
+            # 获取好友在线状态
+            reponse = getlist()
+            for friend_data in reponse.get("friends", []):
+                if friend_data.get("username") == self.current_friend.username:
+                    friend_status = friend_data.get("user_status", "")
+                    if friend_status == "online":
+                        try:
+                            send_message(self.current_freind.username, message)  # 调用后端p2p发送消息接口
+                            break
+                        except Exception as e:
+                            QMessageBox.critical(self, "错误", f"发送消息时出错: {str(e)}")
+                            break
+                    else:
+                        try:
+                            send_offline_message(self.current_friend.username, content=message)  #调用后端发送离线消息接口
+                        except Exception as e:
+                            QMessageBox.critical(self, "错误", f"发送离线消息时出错: {str(e)}")
+                        break
+        else :
+            QMessageBox.warning(self, "错误", "消息不能为空或者对象未选择")
 
     def append_message(self, sender, message, is_me):
         """添加消息到聊天区域"""
