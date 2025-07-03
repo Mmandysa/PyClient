@@ -3,6 +3,7 @@ import sqlite3
 from panel.Singleton import Singleton
 from datetime import datetime
 from time import time
+from panel.connect import *
 import logging
 
 class SecureStorage(Singleton):
@@ -197,6 +198,20 @@ class SecureStorage(Singleton):
                 conn.close()
             
     def read_message(self,user_id:str):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                select * from messages where user_id = ?
+            ''', (user_id,))
+            message = cursor.fetchall()
+            conn.close()
+        except Exception as e:
+            print(f"Error reading message: {e}")
+            message = None
+        return message
+    
+    def read_message_with_offline(self,user_id:str):
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()

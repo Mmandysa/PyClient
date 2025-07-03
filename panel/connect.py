@@ -145,3 +145,40 @@ def get_user_profile():
             "error": "获取用户资料失败",
             "message": data.get("message", "")
         }
+    
+# 获取离线消息不用前端调用，在storage.read_message_with_offline()中调用
+def get_offline_message():
+    headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
+    response = requests.post(f"{Url}/getofflinemessage/", headers=headers)
+    data = response.json()
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "获取离线消息失败", "message": data}
+    
+def send_offline_message(recievername, content):
+    headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
+    response = requests.post(
+        f"{Url}/sendofflinemessage/",
+        headers=headers,
+        json={
+            "receivername": recievername,
+            "content": content
+        }
+    )
+    data = response.json()
+    
+    if response.status_code == 201:
+        return data
+    else:
+        return {"error": "发送离线消息失败", "message": data}
+    
+def delete_offline_message():
+    headers = {"Authorization": f"Token {SecureStorage().get_token(SecureStorage().get_my_user_id())}"}
+    response = requests.post(f"{Url}/deleteofflinemessage/", headers=headers)
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data
+    else:
+        return {"error": "删除离线消息失败", "message": data}
